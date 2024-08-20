@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>Using the svycdiff package</title>
+<style type="text/css">
+/**
+ * Prism.s theme ported from highlight.js's xcode style
+ */
+pre code {
+  padding: 1em;
+}
+.token.comment {
+  color: #007400;
+}
+.token.punctuation {
+  color: #999;
+}
+.token.tag,
+.token.selector {
+  color: #aa0d91;
+}
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol {
+  color: #1c00cf;
+}
+.token.property,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin {
+  color: #c41a16;
+}
+.token.inserted {
+  background-color: #ccffd8;
+}
+.token.deleted {
+  background-color: #ffebe9;
+}
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #9a6e3a;
+}
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #836c28;
+}
+.token.function,
+.token.class-name {
+  color: #DD4A68;
+}
+.token.regex,
+.token.important,
+.token.variable {
+  color: #5c2699;
+}
+.token.important,
+.token.bold {
+  font-weight: bold;
+}
+.token.italic {
+  font-style: italic;
+}
+</style>
+<style type="text/css">
+body {
+  font-family: sans-serif;
+  max-width: 800px;
+  margin: auto;
+  padding: 1em;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+body, .footnotes, code { font-size: .9em; }
+li li { font-size: .95em; }
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+pre, img { max-width: 100%; }
+pre, pre:hover {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+pre code {
+  display: block;
+  overflow-x: auto;
+}
+code { font-family: 'DejaVu Sans Mono', 'Droid Sans Mono', 'Lucida Console', Consolas, Monaco, monospace; }
+:not(pre) > code, code[class] { background-color: #F8F8F8; }
+code.language-undefined, pre > code:not([class]) {
+  background-color: inherit;
+  border: 1px solid #eee;
+}
+table {
+  margin: auto;
+  border-top: 1px solid #666;
+}
+table thead th { border-bottom: 1px solid #ddd; }
+th, td { padding: 5px; }
+thead, tfoot, tr:nth-child(even) { background: #eee; }
+blockquote {
+  color: #666;
+  margin: 0;
+  padding-left: 1em;
+  border-left: 0.5em solid #eee;
+}
+hr, .footnotes::before { border: 1px dashed #ddd; }
+.frontmatter { text-align: center; }
+#TOC .numbered li { list-style: none; }
+#TOC .numbered { padding-left: 0; }
+#TOC .numbered ul { padding-left: 1em; }
+table, .body h2 { border-bottom: 1px solid #666; }
+.body .appendix, .appendix ~ h2 { border-bottom-style: dashed; }
+.footnote-ref a::before { content: "["; }
+.footnote-ref a::after { content: "]"; }
+section.footnotes::before {
+  content: "";
+  display: block;
+  max-width: 20em;
+}
+
+@media print {
+  body {
+    font-size: 12pt;
+    max-width: 100%;
+  }
+  tr, img { page-break-inside: avoid; }
+}
+@media only screen and (min-width: 992px) {
+  pre { white-space: pre; }
+}
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+</head>
+<body>
+<div class="frontmatter">
+<div class="title"><h1>Using the svycdiff package</h1></div>
+<div class="author"><h2></h2></div>
+<div class="date"><h3></h3></div>
+</div>
+<div class="body">
+<h2 id="welcome">Welcome!</h2>
+<p>In this vignette, we provide a brief introduction to using the <code>R</code> package <code>svycdiff</code>. The purpose of this package is to to estimate population average controlled difference (ACD), or under stronger assumptions, the population average treatment effect (PATE), for a given outcome between levels of a binary treatment, exposure, or other group membership variable of interest for clustered, stratified survey samples where sample selection depends on the comparison group. This vignette gives an overview of the <code>R</code> package and its implementation, but omits the technical details about this estimation approach. For additional details about the statistical methodology, please refer to Salerno et al. (2024+) <em>“What’s the weight? Estimating controlled outcome differences in complex surveys for health disparities research.”</em></p>
+<pre><code class="language-r">library(svycdiff)
+</code></pre>
+<h2 id="example-with-simulated-data">Example With Simulated Data</h2>
+<h3 id="population-parameters">Population Parameters</h3>
+<p>In this first example, we provide an illustration of the method using simulated data. We first generate a superpopulation of \(N = 10,000\) individuals from which we can repeatedly take weighted samples. The population parameters are as follows:</p>
+<ul>
+<li>Let \(Y\) denote a continuous (normal) outcome of interest</li>
+<li>Let \(A\) denote the primary (binary) predictor of interest</li>
+<li>Let \(X\) denote a set of predictors which relate to both \(Y\) and \(A\)</li>
+</ul>
+<p>In the context of this work, the sampling mechanism depends on \(A\) and \(X\). For simplicity, we have reduced the set of covariates in \(X\) to be a single, Normal random variable: \(X \sim N(1, 1)\).</p>
+<h3 id="data-generation">Data Generation</h3>
+<p>Population data corresponding to our independent predictor \(X\) were first simulated. We then generated the rest of our data from three models: (1) the propensity model \((A \mid X)\), which characterized our primary predictor of interest, (2) the selection model, which defines the probability of inclusion into the sample given \(A\) and \(X\), and (3) the outcome model \((Y \mid A, X)\), which characterizes the true distribution of the outcome.</p>
+<p><strong>Propensity Model</strong></p>
+<p>We denote the primary (binary) predictor, \(A\), as an indicator of the comparison groups of interest (e.g., treatment or exposure groups), and we simulate \(A\) such that:</p>
+<p>$$A \mid  X \sim \text{Bin}(N, p_A)$$
+$$p_A = \text{logit}^{-1}(\tau X) = \frac{1}{1\ +\ \exp\{-(\tau X)\}}$$</p>
+<p>where we let \(\tau = 1\).</p>
+<p><strong>Selection Model</strong></p>
+<p>We denote the probability of being selected into the sample as \(p_S\) and we simulate this probability such that:</p>
+<p>$$p_S = \text{logit}^{-1}[\beta_0 +\beta_1(1 - A)\ +\ \beta_2 X] = \frac{1}{1\ +\ \exp\{-(\beta_0 +\beta_1(1 - A)\ +\ \beta_2 X)\}}$$</p>
+<p>where \(\beta_0 = -3\) and \(\beta_1 = \beta_2 = 1\). We further denote the observation/sampling weights for the study as \(\omega_S = p_S^{-1}\).</p>
+<p><strong>Outcome Model</strong></p>
+<p>In generating the outcome, <em>we consider treatment heterogeneity</em>. Denote the outcome model as:</p>
+<p>$$Y = \gamma_0 + \gamma_1 X + \gamma_2 A + \gamma_3 A X + \varepsilon; \quad \varepsilon \sim N(0, 0.5)$$</p>
+<p>where \(\gamma_0 = \gamma_1 = \gamma_2 = 1\), and \(\gamma_3 = 0.1\). Our quantity of interest is the average controlled difference (ACD), or under stronger assumptions, the population average treatment effect. Given the superpopulation generated according to the models above, we then take a random sample by generating a sampling indicator \(S\ |\ A, X \sim \text{Bin}(N,\ p_s)\):</p>
+<pre><code class="language-r">
+#-- Set Seed for Random Number Generation
+
+set.seed(1)
+
+#-- Define Population Parameter Values
+
+#- Population Size
+
+N &lt;- 10000
+
+#- Propensity Model Parameter
+
+tau &lt;- 1
+
+#- Selection Model Parameters
+
+beta0 &lt;- -3
+
+beta1 &lt;- 1 
+
+beta2 &lt;- 1 
+
+#- Outcome Model Parameters
+
+gamma0 &lt;- 1
+  
+gamma1 &lt;- 1
+
+gamma2 &lt;- 1
+
+gamma3 &lt;- 0.1
+
+#-- Simulate Data
+
+X &lt;- rnorm(N, 1)
+
+p_A &lt;- plogis(tau * X)
+
+A &lt;- rbinom(N, 1, p_A)
+
+p_S &lt;- plogis(beta0 + beta1 * A + beta2 * X + rnorm(N, 0, 0.1))
+
+s_wt &lt;- 1/p_S
+
+aa &lt;- 1; Y1 &lt;- gamma0 + gamma1 * X + gamma2 * aa + gamma3 * X * aa + rnorm(N)
+aa &lt;- 0; Y0 &lt;- gamma0 + gamma1 * X + gamma2 * aa + gamma3 * X * aa + rnorm(N)
+
+Y &lt;- A * Y1 + (1 - A) * Y0
+
+dat &lt;- data.frame(Y, A, X, p_A, p_S, s_wt)
+
+true_cdiff &lt;- mean(Y1 - Y0)
+
+S &lt;- rbinom(N, 1, p_S)
+
+samp &lt;- dat[S == 1, ]
+</code></pre>
+<p><strong>Note:</strong> In the package, we provide a function, <code>simdat</code> to generate data as we have above (see <code>?simdat</code> for more information). We simulate the data in this example manually for illustration.</p>
+<h3 id="fitting-the-model">Fitting the Model</h3>
+<p>In order to fit the overall model, the user must specify the data (in our case, <code>samp</code>), the method we will use to estimate the controlled difference (here we will use outcome regression and direct standardization, <code>&quot;OM&quot;</code>; see <code>?svycdiff</code> for more details), and formulas that specify the propensity, selection, and (optionally) outcome models. From there, we can fit the method and examine the results!</p>
+<pre><code class="language-r">
+#-- Fit Model
+
+y_mod &lt;- Y ~ A * X
+
+a_mod &lt;- A ~ X
+
+s_mod &lt;- p_S ~ A + X
+
+fit &lt;- svycdiff(samp, &quot;OM&quot;, a_mod, s_mod, y_mod, &quot;gaussian&quot;)
+
+fit
+#&gt; 
+#&gt; Outcome Model:  
+#&gt; glm(formula = y_form, family = y_fam, data = df)
+#&gt; 
+#&gt; Treatment Model:  
+#&gt; glm(formula = a_form, family = &quot;quasibinomial&quot;, data = df)
+#&gt; 
+#&gt; Selection Model:  
+#&gt; betareg(formula = s_form, data = df)
+#&gt; 
+#&gt; CDIFF:  
+#&gt;   CDIFF      SE     LCL     UCL P-Value 
+#&gt;  1.1659  0.0723  1.0243  1.3076  0.0000
+</code></pre>
+<p>As shown, we estimate the controlled difference to be 1.166, as compared to the true controlled difference of 1.1096. For technical details on the method, see please refer to Salerno et al. (2024+) <em>“What’s the weight? Estimating controlled outcome differences in complex surveys for health disparities research.”</em> To reproduce the analysis results for the main paper, see <code>inst/nhanes.Rmd</code>.</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/combine/npm/katex/dist/katex.min.js,npm/katex/dist/contrib/auto-render.min.js,npm/@xiee/utils/js/render-katex.js" defer></script>
+</body>
+</html>
