@@ -82,3 +82,6 @@ fit <- svycdiff(samp, "OM", a_mod, s_mod, y_mod, "gaussian")
 fit
 
 
+## -----------------------------------------------------------------------------
+sessionInfo()
+
